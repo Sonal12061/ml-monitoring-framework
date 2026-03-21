@@ -149,4 +149,4 @@ retraining:
 
 ## Related Projects
 
-- [E-commerce Recommendation System](https://github.com/Sonal12061) — the XGBoost model being monitored
+- [E-commerce Recommendation System](https://github.com/Sonal12061/ecommerce-recommendation-xgboost) — the XGBoost model being monitored
