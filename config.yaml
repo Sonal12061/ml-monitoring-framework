@@ -1,0 +1,53 @@
+model:
+  path: models/xgboost_recommender.pkl
+  version: "1.0.0"
+  features:
+    numerical: [Recency, Frequency, Monetary, AvgOrderValue, DaysSinceFirst]
+    categorical: [Country_encoded]
+  target: label
+
+data:
+  reference_path: data/reference/reference_data.parquet
+  production_path: data/production/
+
+monitoring:
+  drift:
+    psi_threshold: 0.2
+    ks_threshold: 0.05
+    window_size: 1000
+  performance:
+    auc_drop_threshold: 0.05
+    ndcg_drop_threshold: 0.05
+    precision_drop_threshold: 0.05
+    baseline_auc: 0.65
+    baseline_ndcg: 0.28
+    baseline_precision: 0.18
+  validation:
+    fail_on_schema_error: true
+    null_threshold: 0.01
+
+alerting:
+  email:
+    enabled: false
+    smtp_server: smtp.gmail.com
+    smtp_port: 587
+    sender: alerts@yourcompany.com
+    recipients: [team@yourcompany.com]
+  webhook:
+    enabled: false
+    url: ""
+  log_path: logs/alerts.json
+
+retraining:
+  github_token_env: GITHUB_TOKEN
+  repo_owner: Sonal12061
+  repo_name: ml-monitoring-framework
+  workflow_id: retrain.yml
+  branch: main
+  drift_trigger_count: 2
+
+logging:
+  metrics_log_path: logs/metrics_log.json
+  drift_log_path: logs/drift_log.json
+  validation_log_path: logs/validation_log.json
+  level: INFO

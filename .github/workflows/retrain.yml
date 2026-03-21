@@ -1,0 +1,92 @@
+name: Retrain Model
+
+on:
+  workflow_dispatch:
+    inputs:
+      trigger_reason:
+        description: "Reason for retraining"
+        required: false
+        default: "manual"
+      triggered_at:
+        description: "ISO timestamp of trigger"
+        required: false
+
+jobs:
+  retrain:
+    name: Retrain XGBoost Recommender
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Log trigger info
+        run: |
+          echo "Trigger reason: ${{ github.event.inputs.trigger_reason }}"
+          echo "Triggered at:   ${{ github.event.inputs.triggered_at }}"
+
+      - name: Generate fresh training data
+        run: python generate_data.py
+
+      - name: Retrain model
+        run: |
+          python - <<'EOF'
+          import pickle, os
+          import pandas as pd
+          from xgboost import XGBClassifier
+          from sklearn.model_selection import train_test_split
+          from sklearn.metrics import roc_auc_score
+
+          df = pd.read_parquet("data/reference/reference_data.parquet")
+          features = [
+              "Recency", "Frequency", "Monetary",
+              "AvgOrderValue", "DaysSinceFirst", "Country_encoded",
+          ]
+          X, y = df[features], df["label"]
+          X_train, X_test, y_train, y_test = train_test_split(
+              X, y, test_size=0.2, random_state=42, stratify=y
+          )
+          model = XGBClassifier(
+              n_estimators=300,
+              max_depth=6,
+              learning_rate=0.05,
+              subsample=0.8,
+              colsample_bytree=0.8,
+              eval_metric="auc",
+              random_state=42,
+          )
+          model.fit(X_train, y_train, eval_set=[(X_test, y_test)], verbose=False)
+          auc = roc_auc_score(y_test, model.predict_proba(X_test)[:, 1])
+          print(f"Retrained model AUC: {auc:.4f}")
+          os.makedirs("models", exist_ok=True)
+          with open("models/xgboost_recommender.pkl", "wb") as f:
+              pickle.dump(model, f)
+          print("Model saved.")
+          EOF
+
+      - name: Commit retrained model
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add models/
+          git diff --cached --quiet || \
+            git commit -m \
+              "chore(model): retrain triggered by '${{ github.event.inputs.trigger_reason }}'"
+          git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload retrained model
+        uses: actions/upload-artifact@v4
+        with:
+          name: retrained-model-${{ github.run_id }}
+          path: models/xgboost_recommender.pkl
+          retention-days: 90

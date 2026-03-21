@@ -1,0 +1,52 @@
+name: ML Monitoring Pipeline
+
+on:
+  schedule:
+    - cron: "0 */6 * * *"
+  workflow_dispatch:
+    inputs:
+      batch_path:
+        description: "Path to production batch"
+        required: false
+        default: "data/production/batch_003.parquet"
+
+jobs:
+  monitor:
+    name: Run Monitoring Cycle
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Generate data
+        run: python generate_data.py
+
+      - name: Run monitoring pipeline
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BATCH="${{ github.event.inputs.batch_path || 'data/production/batch_004.parquet' }}"
+          python run_monitoring.py --batch "$BATCH" --with-labels
+
+      - name: Upload monitoring logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: monitoring-logs-${{ github.run_id }}
+          path: logs/
+          retention-days: 30
