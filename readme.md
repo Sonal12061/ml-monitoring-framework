@@ -121,6 +121,24 @@ retraining:
 
 ---
 
+## CI/CD Behavior
+
+The monitoring workflow exits with code 1 when alerts are fired — 
+this is intentional. A red X in GitHub Actions means drift or 
+degradation was detected, not that the pipeline broke.
+
+| Exit code | Meaning |
+|---|---|
+| 0 | All checks passed — no drift, no alerts |
+| 1 | Alerts fired — drift or performance degradation detected |
+
+Artifacts (monitoring logs) are uploaded regardless of exit code 
+and can be downloaded from the workflow run summary page.
+
+> In production, logs would be persisted to S3 or a database so 
+> the Streamlit dashboard retains historical trends across runs 
+> rather than resetting each CI cycle.
+
 ## GitHub Actions Setup
 
 1. Add `GITHUB_TOKEN` as a repo secret (Settings → Secrets → Actions)
